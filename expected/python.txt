@@ -1,0 +1,8 @@
+[function_def] def top_level_function()
+[class] class MyClass
+[function_def]   def __init__()
+[function_def]   def method_one()
+[function_def]   def method_two()
+[function_def] def another_function()
+[class] class AnotherClass
+[function_def]   def only_method()

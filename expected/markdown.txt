@@ -1,0 +1,7 @@
+[header1] Top Level Header
+[header2]   Second Level
+[header3]     Third Level Header
+[header4]       Fourth Level Header
+[header2]   Another Second Level
+[header3]     Nested Third
+[header1] Back to Top Level

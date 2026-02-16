@@ -1,0 +1,7 @@
+[class] type MyStruct
+[function_def]   func GetValue()
+[function_def]   func SetValue()
+[function_def] func topLevelFunction()
+[class] type AnotherType
+[function_def]   func GetName()
+[function_def] func anotherFunction()

@@ -1,0 +1,8 @@
+[export] pub struct MyStruct
+[class] impl MyStruct
+[export]   pub fn new()
+[export]   pub fn get_value()
+[function_def]   fn private_method()
+[export] pub enum MyEnum
+[function_def] fn top_level_function()
+[export] pub fn public_function()

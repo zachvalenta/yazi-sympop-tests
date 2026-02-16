@@ -1,0 +1,5 @@
+[function_def] function topLevelFunction()
+[class] class MyClass
+[function_def]   constructor()
+[function_def] const arrowFunc = ()
+[export] export function exportedFunction()
