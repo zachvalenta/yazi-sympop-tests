@@ -11,210 +11,14 @@ Usage: lua test_runner.lua [generate|test]
 ui = {}
 ya = {}
 
--- Load the symbol plugin and extract the extractor function
-dofile("symbol.lua")
+-- Load the actual symbol plugin
+local plugin = dofile("symbol.lua")
 
--- Read the plugin file and extract the extract_symbols function
-local function load_extractor()
-  local content = io.open("symbol.lua", "r"):read("*a")
+-- Get the extraction function (exposed for testing)
+local extract_symbols = plugin._extract_symbols
 
-  -- Execute in a sandboxed environment to get the extract_symbols function
-  local env = {
-    io = io,
-    table = table,
-    string = string,
-    math = math,
-    ipairs = ipairs,
-    pairs = pairs,
-    tostring = tostring,
-    ui = ui,
-    ya = ya,
-  }
-
-  -- Extract just the extract_symbols function by executing the file
-  local chunk = load(content, "symbol.lua", "t", env)
-  if chunk then chunk() end
-
-  -- Now we need to extract the function manually since it's local
-  -- Instead, let's just call the file's logic directly
-  return env
-end
-
--- Extract symbols from a file (direct implementation)
-local function extract_symbols_direct(path, ext)
-  local file = io.open(path, "r")
-  if not file then
-    return { { type = "error", text = "ERROR: Could not open file" } }
-  end
-
-  local symbols = {}
-  local in_class = false
-  local in_impl = false
-  local class_indent = 0
-  local current_type = nil
-  local in_code_block = false
-
-  for line in file:lines() do
-    local symbol = nil
-    local symbol_type = nil
-
-    if ext == "md" then
-      if line:match("^```") or line:match("^~~~") then
-        in_code_block = not in_code_block
-      end
-
-      if not in_code_block then
-        local level, text = line:match("^(#+)%s+(.+)")
-        if level and text then
-          if not text:match("^https?://") then
-            local indent = string.rep("  ", #level - 1)
-            local color_key = "header" .. math.min(#level, 4)
-            symbol = indent .. text
-            symbol_type = color_key
-          end
-        end
-      end
-
-    elseif ext == "py" then
-      local line_indent = #(line:match("^(%s*)") or "")
-
-      local class_name = line:match("^class%s+([%w_]+)")
-      if class_name then
-        symbol = "class " .. class_name
-        symbol_type = "class"
-        in_class = true
-        class_indent = line_indent
-      else
-        local func_name = line:match("^%s*def%s+([%w_]+)")
-        if func_name then
-          if in_class and line_indent > class_indent then
-            symbol = "  def " .. func_name .. "()"
-          else
-            symbol = "def " .. func_name .. "()"
-            in_class = false
-          end
-          symbol_type = "function_def"
-        elseif in_class and line_indent <= class_indent and line:match("%S") then
-          in_class = false
-        end
-      end
-
-    elseif ext == "js" or ext == "ts" then
-      local class_name = line:match("^%s*class%s+([%w_]+)")
-      if class_name then
-        symbol = "class " .. class_name
-        symbol_type = "class"
-        in_class = true
-      elseif line:match("^}") then
-        in_class = false
-      else
-        local method_name = line:match("^%s+([%w_]+)%s*%([^)]*%)%s*{")
-        if method_name and in_class then
-          symbol = "  " .. method_name .. "()"
-          symbol_type = "function_def"
-        else
-          local func_name = line:match("^%s*function%s+([%w_]+)")
-          if func_name then
-            symbol = "function " .. func_name .. "()"
-            symbol_type = "function_def"
-            in_class = false
-          else
-            local const_func = line:match("^%s*const%s+([%w_]+)%s*=%s*%(")
-            if const_func then
-              symbol = "const " .. const_func .. " = ()"
-              symbol_type = "function_def"
-            else
-              local export_func = line:match("^%s*export%s+function%s+([%w_]+)")
-              if export_func then
-                symbol = "export function " .. export_func .. "()"
-                symbol_type = "export"
-              end
-            end
-          end
-        end
-      end
-
-    elseif ext == "rs" then
-      local impl_name = line:match("^%s*impl%s+([%w_<>]+)")
-      if impl_name then
-        symbol = "impl " .. impl_name
-        symbol_type = "class"
-        in_impl = true
-      elseif line:match("^}") then
-        in_impl = false
-      else
-        local fn_name = line:match("^%s*pub%s+fn%s+([%w_]+)")
-        if fn_name then
-          if in_impl then
-            symbol = "  pub fn " .. fn_name .. "()"
-          else
-            symbol = "pub fn " .. fn_name .. "()"
-          end
-          symbol_type = "export"
-        else
-          local priv_fn = line:match("^%s+fn%s+([%w_]+)")
-          if priv_fn and in_impl then
-            symbol = "  fn " .. priv_fn .. "()"
-            symbol_type = "function_def"
-          else
-            local top_fn = line:match("^fn%s+([%w_]+)")
-            if top_fn then
-              symbol = "fn " .. top_fn .. "()"
-              symbol_type = "function_def"
-            else
-              local struct_name = line:match("^%s*pub%s+struct%s+([%w_]+)")
-              if struct_name then
-                symbol = "pub struct " .. struct_name
-                symbol_type = "export"
-              else
-                local enum_name = line:match("^%s*pub%s+enum%s+([%w_]+)")
-                if enum_name then
-                  symbol = "pub enum " .. enum_name
-                  symbol_type = "export"
-                end
-              end
-            end
-          end
-        end
-      end
-
-    elseif ext == "go" then
-      local type_name = line:match("^type%s+([%w_]+)")
-      if type_name then
-        symbol = "type " .. type_name
-        symbol_type = "class"
-        current_type = type_name
-      else
-        local receiver, method = line:match("^func%s+%(.-*([%w_]+)%)%s+([%w_]+)")
-        if receiver and method then
-          if receiver == current_type then
-            symbol = "  func " .. method .. "()"
-          else
-            symbol = "func (" .. receiver .. ") " .. method .. "()"
-          end
-          symbol_type = "function_def"
-        else
-          local func_name = line:match("^func%s+([%w_]+)")
-          if func_name then
-            symbol = "func " .. func_name .. "()"
-            symbol_type = "function_def"
-            current_type = nil
-          end
-        end
-      end
-    end
-
-    if symbol then
-      table.insert(symbols, { type = symbol_type, text = symbol })
-    end
-  end
-
-  file:close()
-
-  if #symbols == 0 then
-    return { { type = "info", text = "No symbols found" } }
-  end
-  return symbols
+if not extract_symbols then
+  error("Plugin does not expose _extract_symbols for testing")
 end
 
 -- Test configuration
@@ -233,7 +37,7 @@ local mode = arg[1] or "test"
 if mode == "generate" then
   print("Generating expected output files...")
   for _, test in ipairs(tests) do
-    local symbols = extract_symbols_direct(test.file, test.ext)
+    local symbols = extract_symbols(test.file, test.ext)
     local output_file = "expected/" .. test.name:lower() .. ".txt"
     local f = io.open(output_file, "w")
     for _, sym in ipairs(symbols) do
@@ -249,7 +53,7 @@ elseif mode == "test" then
   local all_passed = true
 
   for _, test in ipairs(tests) do
-    local symbols = extract_symbols_direct(test.file, test.ext)
+    local symbols = extract_symbols(test.file, test.ext)
     local expected_file = "expected/" .. test.name:lower() .. ".txt"
 
     -- Read expected output
