@@ -1,16 +1,22 @@
 --- @sync peek
 local M = {}
 
--- Catppuccin Mocha color scheme
-local COLORS = {
-	header1 = "#f38ba8",      -- Red - Top level headers
-	header2 = "#fab387",      -- Peach - Second level headers
-	header3 = "#f9e2af",      -- Yellow - Third level headers
-	header4 = "#a6e3a1",      -- Green - Fourth level headers
-	class = "#f9e2af",        -- Yellow - Classes, structs, enums, types
-	function_def = "#89b4fa", -- Blue - Functions, methods
-	export = "#cba6f7",       -- Mauve - Exports, public items
-}
+-- Style mapping from user's theme
+-- Maps symbol types to yazi theme styles (no fallbacks needed - theme always provides these)
+local function get_styles()
+	return {
+		-- Headers use permission colors (visual hierarchy matches file permissions)
+		header1 = th.status.perm_exec,    -- Green (execute permission)
+		header2 = th.status.perm_write,   -- Red (write permission)
+		header3 = th.status.perm_read,    -- Yellow (read permission)
+		header4 = th.status.perm_type,    -- Blue (file type)
+
+		-- Code symbols use semantic UI colors
+		class = th.which.cand,            -- Cyan (command candidates)
+		function_def = th.status.perm_type, -- Blue (file type)
+		export = th.pick.active,          -- Mauve/pink (active selection)
+	}
+end
 
 -- ============================================================================
 -- EXTRACTOR INTERFACE
@@ -295,12 +301,13 @@ function M:peek(job)
 	local path = url_str:gsub("^file://", "")
 
 	local symbols = extract_symbols(path, ext)
+	local styles = get_styles()
 
-	-- Create colored text lines
+	-- Create styled text lines using theme styles
 	local lines = {}
 	for _, sym in ipairs(symbols) do
-		local color = COLORS[sym.type] or "white"
-		local span = ui.Span(sym.text):style(ui.Style():fg(color))
+		local style = styles[sym.type] or ui.Style()
+		local span = ui.Span(sym.text):style(style)
 		table.insert(lines, ui.Line { span })
 	end
 
