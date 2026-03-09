@@ -149,48 +149,52 @@ end
 
 -- RUST EXTRACTOR
 -- Extracts structs, enums, impl blocks, and functions
+-- Handles pub, pub(crate), pub(super) visibility modifiers
 -- Tracks impl context for method nesting
 local function extract_rs(file)
 	local symbols = {}
 	local in_impl = false
 
+	-- Match pub fn/struct/enum with any visibility: pub, pub(crate), pub(super), pub(in path)
+	local function match_pub(line, keyword)
+		return line:match("^%s*pub%b()%s+" .. keyword .. "%s+([%w_]+)")
+			or line:match("^%s*pub%s+" .. keyword .. "%s+([%w_]+)")
+	end
+
 	for line in file:lines() do
-		-- Check for impl block
+		-- impl block
 		local impl_name = line:match("^%s*impl%s+([%w_<>]+)")
 		if impl_name then
 			table.insert(symbols, { type = "class", text = "impl " .. impl_name })
 			in_impl = true
 		elseif line:match("^}") then
-			in_impl = false  -- Exit impl block
+			in_impl = false
 		else
-			-- Public function
-			local fn_name = line:match("^%s*pub%s+fn%s+([%w_]+)")
-			if fn_name then
-				if in_impl then
-					table.insert(symbols, { type = "export", text = "  pub fn " .. fn_name .. "()" })
-				else
-					table.insert(symbols, { type = "export", text = "pub fn " .. fn_name .. "()" })
-				end
+			-- fn: pub (any visibility) or private
+			local pub_fn = match_pub(line, "fn")
+			if pub_fn then
+				local indent = in_impl and "  " or ""
+				table.insert(symbols, { type = "export", text = indent .. "pub fn " .. pub_fn .. "()" })
 			else
-				-- Private function in impl
 				local priv_fn = line:match("^%s+fn%s+([%w_]+)")
 				if priv_fn and in_impl then
 					table.insert(symbols, { type = "function_def", text = "  fn " .. priv_fn .. "()" })
 				else
-					-- Top-level function
 					local top_fn = line:match("^fn%s+([%w_]+)")
 					if top_fn then
 						table.insert(symbols, { type = "function_def", text = "fn " .. top_fn .. "()" })
 					else
-						-- Struct
-						local struct_name = line:match("^%s*pub%s+struct%s+([%w_]+)")
+						-- struct: pub (any visibility) or private
+						local struct_name = match_pub(line, "struct") or line:match("^%s*struct%s+([%w_]+)")
 						if struct_name then
-							table.insert(symbols, { type = "export", text = "pub struct " .. struct_name })
+							local prefix = match_pub(line, "struct") and "pub " or ""
+							table.insert(symbols, { type = "export", text = prefix .. "struct " .. struct_name })
 						else
-							-- Enum
-							local enum_name = line:match("^%s*pub%s+enum%s+([%w_]+)")
+							-- enum: pub (any visibility) or private
+							local enum_name = match_pub(line, "enum") or line:match("^%s*enum%s+([%w_]+)")
 							if enum_name then
-								table.insert(symbols, { type = "export", text = "pub enum " .. enum_name })
+								local prefix = match_pub(line, "enum") and "pub " or ""
+								table.insert(symbols, { type = "export", text = prefix .. "enum " .. enum_name })
 							end
 						end
 					end

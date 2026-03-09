@@ -1,8 +1,13 @@
 [export] pub struct MyStruct
+[export] pub struct AppState
+[export] struct Internal
 [class] impl MyStruct
 [export]   pub fn new()
 [export]   pub fn get_value()
+[export]   pub fn validate()
 [function_def]   fn private_method()
 [export] pub enum MyEnum
+[export] pub enum Mode
+[export] enum Action
 [function_def] fn top_level_function()
 [export] pub fn public_function()
