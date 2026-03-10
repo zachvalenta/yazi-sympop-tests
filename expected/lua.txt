@@ -1,0 +1,8 @@
+[function_def] local function helper()
+[function_def] local function validate()
+[export] function M.new()
+[export] function M.get_value()
+[export] function M:init()
+[export] function M:process()
+[function_def] function setup()
+[function_def] function teardown()

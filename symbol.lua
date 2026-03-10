@@ -206,6 +206,40 @@ local function extract_rs(file)
 	return symbols
 end
 
+-- LUA EXTRACTOR
+-- Extracts module functions (M.foo, M:foo), local functions, and top-level functions
+local function extract_lua(file)
+	local symbols = {}
+
+	for line in file:lines() do
+		-- Module method: function M:name() or function Mod:name()
+		local mod_method_mod, mod_method_name = line:match("^%s*function%s+([%w_]+):([%w_]+)%s*%(")
+		if mod_method_mod and mod_method_name then
+			table.insert(symbols, { type = "export", text = "function " .. mod_method_mod .. ":" .. mod_method_name .. "()" })
+		else
+			-- Module function: function M.name() or function Mod.name()
+			local mod_func_mod, mod_func_name = line:match("^%s*function%s+([%w_]+)%.([%w_]+)%s*%(")
+			if mod_func_mod and mod_func_name then
+				table.insert(symbols, { type = "export", text = "function " .. mod_func_mod .. "." .. mod_func_name .. "()" })
+			else
+				-- Local function
+				local local_func = line:match("^%s*local%s+function%s+([%w_]+)%s*%(")
+				if local_func then
+					table.insert(symbols, { type = "function_def", text = "local function " .. local_func .. "()" })
+				else
+					-- Top-level function (bare, not module-qualified)
+					local top_func = line:match("^%s*function%s+([%w_]+)%s*%(")
+					if top_func then
+						table.insert(symbols, { type = "function_def", text = "function " .. top_func .. "()" })
+					end
+				end
+			end
+		end
+	end
+
+	return symbols
+end
+
 -- GO EXTRACTOR
 -- Extracts types, functions, and methods
 -- Nests methods under their receiver types
@@ -264,6 +298,7 @@ local EXTRACTORS = {
 	mjs = extract_js,
 	rs = extract_rs,
 	go = extract_go,
+	lua = extract_lua,
 }
 
 -- ============================================================================

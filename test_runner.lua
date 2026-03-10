@@ -29,6 +29,7 @@ local tests = {
   { name = "TypeScript", file = "fixtures/sample.ts", ext = "ts" },
   { name = "Rust", file = "fixtures/sample.rs", ext = "rs" },
   { name = "Go", file = "fixtures/sample.go", ext = "go" },
+  { name = "Lua", file = "fixtures/sample.lua", ext = "lua" },
 }
 
 -- Main execution
